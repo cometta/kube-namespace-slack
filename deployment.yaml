@@ -1,0 +1,70 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-slack-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-slack-rolebinding
+
+subjects:
+- kind: ServiceAccount
+  name: kube-slack
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kube-slack-role
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-slack
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-slack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-slack
+  revisionHistoryLimit: 3
+  template:
+    metadata:
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+      name: kube-slack
+      labels:
+        app: kube-slack
+    spec:
+
+      serviceAccountName: kube-slack
+      containers:
+      - name: kube-slack
+        image: willwill/kube-slack:v4.2.0
+        env:
+        - name: SLACK_URL
+          value: https://hooks.slack.com/services/.../.../...
+        - name: KUBE_NAMESPACES_ONLY
+          value: namespace_name
+        - name: SLACK_USERNAME
+          value: any_monitor_bot
+        - name: SLACK_CHANNEL
+          value: logging
+      
+        resources:
+          requests:
+            memory: 30M
+            cpu: 5m
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - key: CriticalAddonsOnly
+        operator: Exists
